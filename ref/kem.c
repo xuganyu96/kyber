@@ -1,12 +1,48 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 #include "params.h"
 #include "kem.h"
 #include "indcpa.h"
 #include "verify.h"
 #include "symmetric.h"
 #include "randombytes.h"
+#include "openssl/evp.h"
+#include "openssl/core_names.h"
+
+#define POLY1305_KEY_BYTES 32
+#define POLY1305_TAG_BYTES 16
+
+void mac_poly1305(uint8_t *key,
+                  size_t keylen,
+                  uint8_t *msg,
+                  size_t msglen,
+                  uint8_t *digest,
+                  size_t digestlen) {
+    EVP_MAC *mac = NULL;
+    EVP_MAC_CTX *mac_ctx = NULL;
+    size_t _;
+    assert(keylen == POLY1305_KEY_BYTES && "Invalid poly1305 key length");
+    assert(digestlen == POLY1305_TAG_BYTES && "Invalid digest length");
+
+    mac = EVP_MAC_fetch(NULL, "Poly1305", NULL);
+    assert(mac != NULL && "Failed to fetch Poly1305\n");
+    mac_ctx = EVP_MAC_CTX_new(mac);
+    assert(mac_ctx != NULL && "Failed to fetch Poly1305 context\n");
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, key, keylen);
+    params[1] = OSSL_PARAM_construct_end();
+    assert(EVP_MAC_CTX_set_params(mac_ctx, params) > 0 && "Failed to set MAC params\n");
+    assert(EVP_MAC_init(mac_ctx, key, keylen, params) > 0 && "Failed to initialize MAC\n");
+    assert(EVP_MAC_update(mac_ctx, msg, msglen) > 0 && "Failed to update MAC with msg\n");
+    assert(EVP_MAC_final(mac_ctx, digest, &_, digestlen) > 0 && "Failed to finalize MAC");
+
+    EVP_MAC_CTX_free(mac_ctx);
+    EVP_MAC_free(mac);
+}
+
+
 /*************************************************
 * Name:        crypto_kem_keypair_derand
 *

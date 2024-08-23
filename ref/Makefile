@@ -1,10 +1,10 @@
 CC ?= /usr/bin/cc
 CFLAGS += -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wredundant-decls \
-  -Wshadow -Wpointer-arith -O3 -fomit-frame-pointer 
+  -Wshadow -Wpointer-arith -O3 -fomit-frame-pointer -I${OPENSSLDIR}/include
 NISTFLAGS += -Wno-unused-result -O3 -fomit-frame-pointer
 RM = /bin/rm
 
-SOURCES = kem.c indcpa.c polyvec.c poly.c ntt.c cbd.c reduce.c verify.c
+SOURCES = kem.c indcpa.c polyvec.c poly.c ntt.c cbd.c reduce.c verify.c ${OPENSSLDIR}/libcrypto.a
 SOURCESKECCAK = $(SOURCES) fips202.c symmetric-shake.c
 HEADERS = params.h kem.h indcpa.h polyvec.h poly.h ntt.h cbd.h reduce.c verify.h symmetric.h
 HEADERSKECCAK = $(HEADERS) fips202.h
@@ -20,6 +20,7 @@ test: \
   test/test_vectors512 \
   test/test_vectors768 \
   test/test_vectors1024 \
+  test/test_authenticator \
 
 speed: \
   test/test_speed512 \
@@ -53,6 +54,9 @@ lib/libpqcrystals_kyber768_ref.so: $(SOURCES) $(HEADERS) symmetric-shake.c
 lib/libpqcrystals_kyber1024_ref.so: $(SOURCES) $(HEADERS) symmetric-shake.c
 	mkdir -p lib
 	$(CC) -shared -fPIC $(CFLAGS) -DKYBER_K=4 $(SOURCES) symmetric-shake.c -o $@
+
+test/test_authenticator: $(SOURCESKECCAK) $(HEADERSKECCAK) test/test_authenticator.c randombytes.c
+	$(CC) $(CFLAGS) -DKYBER_K=2 $(SOURCESKECCAK) randombytes.c test/test_authenticator.c -o $@
 
 test/test_kyber512: $(SOURCESKECCAK) $(HEADERSKECCAK) test/test_kyber.c randombytes.c
 	$(CC) $(CFLAGS) -DKYBER_K=2 $(SOURCESKECCAK) randombytes.c test/test_kyber.c -o $@
