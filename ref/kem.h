@@ -34,10 +34,8 @@ int crypto_kem_enc(uint8_t *ct, uint8_t *ss, const uint8_t *pk);
 int crypto_kem_dec(uint8_t *ss, const uint8_t *ct, const uint8_t *sk);
 
 void mac_poly1305(uint8_t *key,
-                  size_t keylen,
                   uint8_t *msg,
                   size_t msglen,
-                  uint8_t *digest,
-                  size_t digestlen);
+                  uint8_t *digest);
 
 #endif

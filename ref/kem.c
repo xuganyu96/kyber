@@ -11,32 +11,29 @@
 #include "openssl/evp.h"
 #include "openssl/core_names.h"
 
-#define POLY1305_KEY_BYTES 32
-#define POLY1305_TAG_BYTES 16
+#define MAC_KEY_BYTES 32
+#define MAC_TAG_BYTES 16
 
+/**
+ * uint8_t *key: pointer to the symmetric key. The symmetric key is an array of POLY1305_KEY_BYTES
+ */
 void mac_poly1305(uint8_t *key,
-                  size_t keylen,
                   uint8_t *msg,
                   size_t msglen,
-                  uint8_t *digest,
-                  size_t digestlen) {
+                  uint8_t *digest) {
     EVP_MAC *mac = NULL;
     EVP_MAC_CTX *mac_ctx = NULL;
     size_t _;
-    assert(keylen == POLY1305_KEY_BYTES && "Invalid poly1305 key length");
-    assert(digestlen == POLY1305_TAG_BYTES && "Invalid digest length");
 
     mac = EVP_MAC_fetch(NULL, "Poly1305", NULL);
-    assert(mac != NULL && "Failed to fetch Poly1305\n");
     mac_ctx = EVP_MAC_CTX_new(mac);
-    assert(mac_ctx != NULL && "Failed to fetch Poly1305 context\n");
     OSSL_PARAM params[2];
-    params[0] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, key, keylen);
+    params[0] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_KEY, key, MAC_KEY_BYTES);
     params[1] = OSSL_PARAM_construct_end();
-    assert(EVP_MAC_CTX_set_params(mac_ctx, params) > 0 && "Failed to set MAC params\n");
-    assert(EVP_MAC_init(mac_ctx, key, keylen, params) > 0 && "Failed to initialize MAC\n");
-    assert(EVP_MAC_update(mac_ctx, msg, msglen) > 0 && "Failed to update MAC with msg\n");
-    assert(EVP_MAC_final(mac_ctx, digest, &_, digestlen) > 0 && "Failed to finalize MAC");
+    EVP_MAC_CTX_set_params(mac_ctx, params);
+    EVP_MAC_init(mac_ctx, key, MAC_KEY_BYTES, params);
+    EVP_MAC_update(mac_ctx, msg, msglen);
+    EVP_MAC_final(mac_ctx, digest, &_, MAC_TAG_BYTES);
 
     EVP_MAC_CTX_free(mac_ctx);
     EVP_MAC_free(mac);
@@ -114,20 +111,55 @@ int crypto_kem_enc_derand(uint8_t *ct,
                           const uint8_t *pk,
                           const uint8_t *coins)
 {
+  // coins correspond to an IND-CPA plaintext
+  // buf is plaintext || SHA3-256(pk)
   uint8_t buf[2*KYBER_SYMBYTES];
-  /* Will contain key, coins */
+  // kr will be filled with shared secrets || IND-CPA coin
   uint8_t kr[2*KYBER_SYMBYTES];
 
   memcpy(buf, coins, KYBER_SYMBYTES);
 
   /* Multitarget countermeasure for coins + contributory KEM */
   hash_h(buf+KYBER_SYMBYTES, pk, KYBER_PUBLICKEYBYTES);
+  // because Kyber round 4 uses the rigid transformation with implicit rejection, hashing the
+  // plaintext alone is sufficient for deriving the shared secret, though the design also added in
+  // the hash of the public key for preventing multitarget attacks
   hash_g(kr, buf, 2*KYBER_SYMBYTES);
 
   /* coins are in kr+KYBER_SYMBYTES */
   indcpa_enc(ct, buf, pk, kr+KYBER_SYMBYTES);
 
   memcpy(ss,kr,KYBER_SYMBYTES);
+  return 0;
+}
+
+/**
+ * For implementing the KEM using "encrypt-then-MAC":
+ * Param: uint8_t *ct is still a pointer to a bytes array, but the length of the bytes array will be
+ *        KYBER_CIPHERTEXTBYTES + AUTHENTICATOR_BYTES
+ * Param: uint8_t *ss remains the same
+ * Param: const uint8_t *pk remains the same
+ * Param: const uint8_t *indcpa_pt will be a randomly selected IND-CPA plaintext, which corresponds
+ *        to the argument "coins" in crypto_kem_enc_derand(ct, ss, pk, coins)
+ * Param: const uint8_t *indcpa_coin will be a randomly selected coin that will feed into the
+ *        function call for indcpa_enc(ct, buf, pk, coin);
+ *
+ * We will use SHA3-512 to hash (m || h) into (preKey || macKey), after encrypting m into ct, we
+ * need to sign the ciphertext, but then the shared secret is a hash of (preKey || tag) where the
+ * tag is a hash of the ciphertext.
+ * so we need three buffers:
+ * uint8_t mh[2 * kyber_symbytes];   // will hold m and h, where h is hash of public key
+ * uint8_t kk[kyber_symbytes + authenticator_key_bytes];  // will hold preKey and mac key
+ * uint8_t kt[kyber_symbytes + authenticator_tag_bytes];  // will hold preKey and tag
+ *
+ * finally a hash of kt will produce the shared secret
+ */
+int crypt_kem_etm_encap_derand(uint8_t *ct,
+                               uint8_t *ss,
+                               const uint8_t *pk,
+                               const uint8_t *indcpa_pt,
+                               const uint8_t *indcpa_coin) {
+  // TODO: implement this method and write a test about it
   return 0;
 }
 

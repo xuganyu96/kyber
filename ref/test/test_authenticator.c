@@ -20,9 +20,11 @@ static int test_mac_poly1305(void) {
         digest[i] = 0xFF;
     }
 
-    mac_poly1305(key, sizeof(key), msg, sizeof(msg), digest, sizeof(digest));
+    mac_poly1305(key, msg, sizeof(msg), digest);
     for(size_t i = 0; i < sizeof(digest); i++) {
-        assert(digest[i] == 0x00 && "Poly1305 computation is wrong");
+        if (digest[i] != 0x00) {
+            return 1;
+        }
     }
     
 
@@ -30,5 +32,12 @@ static int test_mac_poly1305(void) {
 }
 
 int main(void) {
-    test_mac_poly1305();
+    int r = 0;
+    r |= test_mac_poly1305();
+
+    if (r) {
+        return 1;
+    }
+
+    return 0;
 }

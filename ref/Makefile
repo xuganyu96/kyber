@@ -1,10 +1,12 @@
+OPENSSLDIR = /opt/homebrew/Cellar/openssl@3/3.3.1
 CC ?= /usr/bin/cc
 CFLAGS += -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wredundant-decls \
-  -Wshadow -Wpointer-arith -O3 -fomit-frame-pointer -I${OPENSSLDIR}/include
+  -Wshadow -Wpointer-arith -O3 -fomit-frame-pointer \
+  -I$(OPENSSLDIR)/include/
 NISTFLAGS += -Wno-unused-result -O3 -fomit-frame-pointer
 RM = /bin/rm
 
-SOURCES = kem.c indcpa.c polyvec.c poly.c ntt.c cbd.c reduce.c verify.c ${OPENSSLDIR}/libcrypto.a
+SOURCES = kem.c indcpa.c polyvec.c poly.c ntt.c cbd.c reduce.c verify.c $(OPENSSLDIR)/lib/libcrypto.a
 SOURCESKECCAK = $(SOURCES) fips202.c symmetric-shake.c
 HEADERS = params.h kem.h indcpa.h polyvec.h poly.h ntt.h cbd.h reduce.c verify.h symmetric.h
 HEADERSKECCAK = $(HEADERS) fips202.h
